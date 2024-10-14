@@ -1,6 +1,6 @@
 [project]
 name = "boolsched"
-version = "0.1.2"
+version = "0.1.3"
 description = "A programmatic, composable scheduling system using boolean logic"
 authors = [
   { name="Hugo Chargois", email="hugo.chargois@free.fr" },
@@ -13,6 +13,9 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
+
+[project.urls]
+homepage = "https://github.com/hchargois/boolsched"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
