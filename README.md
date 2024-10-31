@@ -64,6 +64,8 @@ schedule = timeranges & Every(minutes=10)
 
 # Using schedules
 
+## The `next` method
+
 By themselves, schedules are just a way to get the next datetime that matches
 them, starting from a given point in time. This is done with the `next` method
 of the schedule:
@@ -72,22 +74,35 @@ of the schedule:
 schedule = At("14:30")
 
 # Here we're using the ISO 8601 format encoding for the starting time, but you
-# can also pass a datetime.datetime object
+# can also pass a datetime.datetime object, or omit the starting time entirely
+# and it will use the current time
 n = schedule.next("2024-01-01 12:00:00")
 
 print(n) # 2024-01-01 14:30:00
 ```
 
-Using that interface to actually _do_ things is up to you. Here's a simple
-example of how you could run a function on a schedule forever, simply by
-sleeping between calls:
+## Auxiliary methods
+
+Apart from the main `next` interface, there are also a few helper methods:
+
+- `next_n`: returns the n next times that satisfy the schedule, useful for
+  debugging a schedule
+- `wait_next`: wait (sleep) until the next time
+- `wait_next_async`: same thing but using asynchronous sleep
+
+## Running commands?
+
+boolsched is not a replacement for Cron in the sense that it doesn't run
+commands, it only computes times that match a schedule. Using the provided
+methods to actually make things happen is up to you.
+
+Here's a simple example of how you could run a function on a schedule forever,
+using the helper method `wait_next`.
 
 ```python
 def run_on_schedule(schedule: boolsched.Schedule, func: Callable[[], None]):
     while True:
-        now = datetime.datetime.now()
-        must_sleep_for = schedule.next(now) - now
-        time.sleep(must_sleep_for.total_seconds())
+        schedule.wait_next()
         func()
 ```
 

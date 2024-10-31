@@ -1,6 +1,8 @@
 import datetime
 from abc import ABC, abstractmethod
 from math import gcd
+from time import sleep as sync_sleep
+from asyncio import sleep as async_sleep
 
 Timestamp = int
 
@@ -54,7 +56,7 @@ class Schedule(ABC):
 
     def __invert__(self) -> "Schedule":
         if self.step() is not None:
-            raise ValueError("cannot invert a discrete operator")
+            raise ValueError("cannot invert a discrete component")
         if isinstance(self, Not):
             # Not of Not can be simplified
             return self.operand
@@ -69,11 +71,14 @@ class Schedule(ABC):
         raise NotImplementedError
 
     def next(
-        self, dt: datetime.datetime | str, stop_at: datetime.datetime | None = None
+        self,
+        dt: datetime.datetime | str | None = None,
+        stop_at: datetime.datetime | None = None,
     ) -> datetime.datetime:
         """Returns the next time (a time strictly after dt) that satisfies the
-        schedule.
-        If no such time is found before stop_at (which defaults to one year
+        schedule. If dt is None, it defaults to the current time in the system's
+        local time zone.
+        If no next time is found before stop_at (which defaults to one year
         after dt), StopIteration is raised.
         """
         step = self.step()
@@ -82,6 +87,8 @@ class Schedule(ABC):
 
         if isinstance(dt, str):
             dt = datetime.datetime.fromisoformat(dt)
+        elif dt is None:
+            dt = datetime.datetime.now()
 
         if stop_at is None:
             stop_at = dt + datetime.timedelta(days=366)
@@ -101,13 +108,15 @@ class Schedule(ABC):
 
     def next_n(
         self,
-        dt: datetime.datetime | str,
-        n: int,
+        dt: datetime.datetime | str | None = None,
+        n: int = 10,
         stop_at: datetime.datetime | None = None,
     ) -> list[datetime.datetime]:
         """Returns a list of the n next times that satisfy the schedule"""
         if isinstance(dt, str):
             dt = datetime.datetime.fromisoformat(dt)
+        elif dt is None:
+            dt = datetime.datetime.now()
 
         if stop_at is None:
             stop_at = dt + datetime.timedelta(days=366)
@@ -120,6 +129,46 @@ class Schedule(ABC):
         except StopIteration:
             pass
         return nexts
+
+    def _wait_delta(
+        self,
+        stop_at: datetime.datetime | None = None,
+    ) -> float:
+        now = datetime.datetime.now()
+        nxt = self.next(now, stop_at)
+
+        # finding nxt may have taken some time, let's retrieve a new "now" to
+        # avoid overshooting
+        now = datetime.datetime.now()
+
+        # Python's datetime library's handling of time zones is a freaking
+        # disaster. To reliably (?) get the time difference between two points
+        # in time, it seems the best way is to use their timestamp()s
+        delta = nxt.timestamp() - now.timestamp()
+
+        # delta may be negative if finding nxt took so much time that nxt is now
+        # in the past! Highly unlikely, but technically possible
+        if delta < 0:
+            delta = 0
+
+        return delta
+
+    def wait_next(
+        self,
+        stop_at: datetime.datetime | None = None,
+    ) -> None:
+        """Waits (sleeps) until the next time that satisfies the schedule,
+        starting from the current time in the system's local time zone."""
+        delta = self._wait_delta(stop_at)
+        sync_sleep(delta)
+
+    async def wait_next_async(
+        self,
+        stop_at: datetime.datetime | None = None,
+    ) -> None:
+        """Same as wait_next, but async"""
+        delta = self._wait_delta(stop_at)
+        await async_sleep(delta)
 
 
 class Continuous(Schedule):
